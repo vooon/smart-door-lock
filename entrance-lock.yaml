@@ -1,0 +1,165 @@
+esphome:
+  name: entrance_lock
+  platform: ESP8266
+  board: d1_mini_pro
+
+wifi:
+  networks: !secret wifi_networks
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "Entrance Lock Fallback Hotspot"
+    password: !secret wifi_ap_passwd
+
+captive_portal:
+
+# Enable logging
+logger:
+
+debug:
+
+# Enable Home Assistant API
+api:
+  password: !secret api_password
+  reboot_timeout: 5min
+  services:
+    - service: set_power_counter_total
+      variables:
+        value: float
+      then:
+        - logger.log: "set new offset"
+        - sensor.integration.reset: power_total_integrator
+        - globals.set:
+            id: gv_power_total_offset
+            value: !lambda 'return value;'
+
+    - service: reset_power_total_integrator
+      then:
+        - sensor.integration.reset: power_total_integrator
+
+ota:
+  password: !secret ota_password
+
+web_server:
+  prometheus: true
+  auth:
+    username: admin
+    password: !secret web_password
+
+i2c:
+  scl: D1
+  sda: D2
+
+time:
+  - platform: homeassistant
+    id: esp_time
+  - platform: sntp
+    id: ntp_time
+    timezone: Europe/Moscow
+
+status_led:
+  pin:
+    number: 2
+    inverted: true
+
+globals:
+  - id: gv_power_total_offset
+    type: float
+    restore_value: yes
+    initial_value: '0'
+
+text_sensor:
+  - platform: wifi_info
+    ssid:
+      name: Power 1 SSID
+    bssid:
+      name: Power 1 BSSID
+
+  - platform: version
+    name: "ESPHome version"
+
+binary_sensor:
+  - platform: status
+    name: Power 1 Meter Connected
+
+  - platform: gpio
+    pin:
+      number: D6
+      mode: INPUT_PULLUP
+    filters:
+      - delayed_on_off: 10ms
+    id: t3_motion
+    name: Terrace3 Motion
+    device_class: motion
+
+sensor:
+  - platform: wifi_signal
+    name: "Power 1 WiFi Signal"
+    update_interval: 10s
+
+  - platform: uptime
+    name: "Power 1 Uptime"
+
+  - platform: pulse_counter
+    pin:
+      number: D7
+      # inverted: true
+      mode: INPUT_PULLUP
+    icon: mdi:transmission-tower
+    unit_of_measurement: kW
+    name: Power 1 Meter
+    id: power_meter_counter
+    internal_filter: 10ms
+    count_mode:
+      rising_edge: DISABLE
+      falling_edge: INCREMENT
+    update_interval: 60s
+    filters:
+      # See: https://esphome.io/cookbook/power_meter.html
+      # My meter has 3200 imp per kWh
+      - multiply: 0.01875
+
+  - platform: total_daily_energy
+    name: Power 1 Total Daily
+    icon: mdi:counter
+    power_id: power_meter_counter
+
+  - platform: integration
+    name: Power 1 Total (integrator)
+    sensor: power_meter_counter
+    time_unit: h
+    restore: true
+    id: power_total_integrator
+
+  - platform: template
+    name: Power 1 Total
+    icon: mdi:counter
+    accuracy_decimals: 1
+    unit_of_measurement: kWh
+    lambda: |-
+      return id(gv_power_total_offset) + id(power_total_integrator).state;
+    update_interval: 60s
+
+  - platform: bme280
+    temperature:
+      name: "Terrace3 Temperature"
+      oversampling: 16x
+    pressure:
+      name: "Terrace3 Pressure"
+      id: bme_pressure_hpa
+    humidity:
+      name: "Terrace3 Humidity"
+    address: 0x76
+    update_interval: 30s
+
+  - platform: template
+    name: "Terrace3 Pressure mmHg"
+    icon: mdi:gauge
+    unit_of_measurement: mmHg
+    lambda: |-
+      return id(bme_pressure_hpa).state / 1.33322387415;
+    update_interval: 30s
+
+switch:
+  - platform: restart
+    name: Power 1 Reboot
