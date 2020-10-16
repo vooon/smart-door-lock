@@ -3,12 +3,18 @@ esphome:
   platform: ESP8266
   board: d1_mini_pro
 
+  # XXX
+  arduino_version: dev
+
+substitutions:
+  uname: Entrance Lock
+
 wifi:
   networks: !secret wifi_networks
 
   # Enable fallback hotspot (captive portal) in case wifi connection fails
   ap:
-    ssid: "Entrance Lock Fallback Hotspot"
+    ssid: "${uname} Fallback Hotspot"
     password: !secret wifi_ap_passwd
 
 captive_portal:
@@ -35,10 +41,11 @@ ota:
   password: !secret ota_password
 
 web_server:
-  prometheus: true
   auth:
     username: admin
     password: !secret web_password
+
+prometheus:
 
 i2c:
   scl: D1
@@ -64,16 +71,16 @@ globals:
 text_sensor:
   - platform: wifi_info
     ssid:
-      name: Entrance Lock SSID
+      name: $uname SSID
     bssid:
-      name: Entrance Lock BSSID
+      name: $uname BSSID
 
   - platform: version
-    name: "ESPHome version"
+    name: "$uname ESPHome version"
 
 binary_sensor:
   - platform: status
-    name: Entrance Lock Connected
+    name: $uname Connected
 
   - platform: gpio
     pin:
@@ -83,7 +90,7 @@ binary_sensor:
     filters:
       - delayed_on_off: 10ms
     id: h_closed
-    name: Entrance Gate Closed
+    name: $uname Door Closed
     device_class: door
 
   - platform: gpio
@@ -94,7 +101,7 @@ binary_sensor:
     filters:
       - delayed_on_off: 10ms
     id: h_locked
-    name: Entrance Gate Locked endstop
+    name: $uname Locked endstop
 
   - platform: gpio
     pin:
@@ -104,7 +111,7 @@ binary_sensor:
     filters:
       - delayed_on_off: 10ms
     id: h_unlocked
-    name: Entrance Gate Unlocked endstop
+    name: $uname Unlocked endstop
 
   - platform: gpio
     pin:
@@ -114,7 +121,7 @@ binary_sensor:
     filters:
       - delayed_on_off: 10ms
     id: btn_ext_open
-    name: Entrance Gate External Open
+    name: $uname External Open
 
   - platform: gpio
     pin:
@@ -124,20 +131,20 @@ binary_sensor:
     filters:
       - delayed_on_off: 10ms
     id: btn_int_open
-    name: Entrance Gate Internal Open
+    name: $uname Internal Open
 
 sensor:
   - platform: wifi_signal
-    name: "Entrance Lock WiFi Signal"
+    name: "$uname WiFi Signal"
     update_interval: 10s
 
   - platform: uptime
-    name: "Entrance Lock Uptime"
+    name: "$uname Uptime"
 
 switch:
   - platform: restart
-    name: Entrance Lock Reboot
+    name: $uname Reboot
 
-  - platform: template
-    name: Entrance Lock
-    device_class: lock
+  #- platform: template
+  #  name: $uname
+  #  device_class: lock
