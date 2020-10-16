@@ -3,6 +3,9 @@ esphome:
   platform: ESP8266
   board: d1_mini_pro
 
+  includes:
+    - d1motor.h
+
   # XXX
   arduino_version: dev
 
@@ -48,6 +51,7 @@ web_server:
 prometheus:
 
 i2c:
+  id: i2c_bus
   scl: D1
   sda: D2
 
@@ -67,6 +71,12 @@ globals:
     type: uint32_t
     restore_value: yes
     initial_value: '0'
+
+custom_component:
+  - id: lock_motor
+    lambda: |-
+      auto motor = new D1Motor(id(i2c_bus), 0x30, 0);
+      return {motor};
 
 text_sensor:
   - platform: wifi_info
@@ -132,6 +142,17 @@ binary_sensor:
       - delayed_on_off: 10ms
     id: btn_int_open
     name: $uname Internal Open
+
+    on_press:
+      - lambda: |-
+          //auto m = static_cast<D1Motor*>(id(lock_motor).get_component(0));
+          //m->set(50);
+          auto c = id(lock_motor).get_component(0);
+
+    on_release:
+      - lambda: |-
+          //D1Motor *m = id(lock_motor).get_component(0);
+          //m->set(0);
 
 sensor:
   - platform: wifi_signal
