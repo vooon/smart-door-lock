@@ -5,6 +5,7 @@ esphome:
 
   includes:
     - d1motor.h
+    - lock_controller.h
 
   # XXX
   arduino_version: dev
@@ -40,6 +41,7 @@ api:
       then:
         - logger.log: "requested to unlock"
 
+
 ota:
   password: !secret ota_password
 
@@ -71,12 +73,29 @@ globals:
     type: uint32_t
     restore_value: yes
     initial_value: '0'
+  - id: gv_latch_mode
+    type: bool
+    restore_value: yes
+    initial_value: "true"
+  - id: gv_int_open_enabled
+    type: bool
+    restore_value: yes
+    initial_value: "true"
+  - id: gv_ext_open_enabled
+    type: bool
+    restore_value: yes
+    initial_value: "true"
 
-# custom_component:
-#   - id: lock_motor
-#     lambda: |-
-#       auto motor = new D1Motor(id(i2c_bus), 0x30, 0);
-#       return {motor};
+custom_component:
+  - id: lockctl
+    lambda: |-
+      auto m = static_cast<D1Motor*>(id(lock_motor));
+      auto ctl = new LockController(
+        *m,
+        *id(h_locked), *id(h_unlocked), *id(h_closed),
+        id(gv_lock_cnt), id(gv_unlock_cnt)
+      );
+      return {ctl};
 
 output:
   - platform: custom
@@ -99,6 +118,21 @@ text_sensor:
   - platform: version
     name: "$uname ESPHome version"
 
+  - platform: template
+    name: "$uname State"
+    lambda: |-
+      using S = LockController::State;
+      auto ctl = get_lockctl(id(lockctl));
+      switch (ctl->get_state()) {
+        case S::open:           return {"OPEN"};
+        case S::opening:        return {"OPENING"};
+        case S::close:          return {"CLOSE"};
+        case S::closing:        return {"CLOSING"};
+        case S::wait_to_close:  return {"WAIT_TO_CLOSE"};
+        case S::unknown:
+        default:                return {"UNKNOWN"};
+      }
+
 binary_sensor:
   - platform: status
     name: $uname Connected
@@ -113,6 +147,13 @@ binary_sensor:
     id: h_closed
     name: $uname Door Closed
     device_class: door
+    on_press:
+      - lambda: |-
+          auto ctl = get_lockctl(id(lockctl));
+          ctl->on_door_closed();
+
+    on_release:
+      - script.execute: engage_latch_scr
 
   - platform: gpio
     pin:
@@ -123,6 +164,10 @@ binary_sensor:
       - delayed_on_off: 10ms
     id: h_locked
     name: $uname Locked endstop
+    on_press:
+      - lambda: |-
+          auto ctl = get_lockctl(id(lockctl));
+          ctl->on_lock_endstop();
 
   - platform: gpio
     pin:
@@ -133,6 +178,10 @@ binary_sensor:
       - delayed_on_off: 10ms
     id: h_unlocked
     name: $uname Unlocked endstop
+    on_press:
+      - lambda: |-
+          auto ctl = get_lockctl(id(lockctl));
+          ctl->on_unlock_endstop();
 
   - platform: gpio
     pin:
@@ -143,17 +192,8 @@ binary_sensor:
       - delayed_on_off: 10ms
     id: btn_ext_open
     name: $uname External Open
-
     on_press:
-      - lambda: |-
-          auto m = static_cast<D1Motor*>(id(lock_motor));
-          m->set_level(-1.0f);
-
-    on_release:
-      - lambda: |-
-          auto m = static_cast<D1Motor*>(id(lock_motor));
-          //m->set_level(0.0f);
-          m->set_level(NAN);
+      - script.execute: unlock_signal_scr
 
   - platform: gpio
     pin:
@@ -164,18 +204,8 @@ binary_sensor:
       - delayed_on_off: 10ms
     id: btn_int_open
     name: $uname Internal Open
-
     on_press:
-      - lambda: |-
-          auto m = static_cast<D1Motor*>(id(lock_motor));
-          m->set_level(1.0f);
-
-    on_release:
-      - lambda: |-
-          auto m = static_cast<D1Motor*>(id(lock_motor));
-          //m->set_level(0.0f);
-          m->set_level(INFINITY);
-
+      - script.execute: unlock_signal_scr
 
 sensor:
   - platform: wifi_signal
@@ -189,6 +219,62 @@ switch:
   - platform: restart
     name: $uname Reboot
 
-  #- platform: template
-  #  name: $uname
-  #  device_class: lock
+  - platform: template
+    id: latch_mode
+    name: $uname Latch Mode
+    lambda: |-
+      return id(gv_latch_mode);
+    turn_on_action:
+      - globals.set:
+          id: gv_latch_mode
+          value: "true"
+    turn_off_action:
+      - globals.set:
+          id: gv_latch_mode
+          value: "false"
+
+  - platform: template
+    name: $uname
+    # device_class: lock
+    lambda: |-
+      auto ctl = get_lockctl(id(lockctl));
+      return ctl->get_state() != LockController::State::close;
+    turn_on_action:
+      - script.execute: unlock_scr
+    turn_off_action:
+      - script.execute: lock_scr
+
+script:
+  # activate locking logic
+  - id: lock_scr
+    then:
+      - lambda: |-
+          auto ctl = get_lockctl(id(lockctl));
+          ctl->lock();
+
+  # unlock the door, if latch mode is on give one minute to open
+  - id: unlock_scr
+    then:
+      - lambda: |-
+          auto ctl = get_lockctl(id(lockctl));
+          ctl->unlock();
+      - if:
+          condition:
+            - switch.is_on: latch_mode
+          then:
+            - delay: 1min
+            - script.execute: lock_scr
+
+  # as soon as door opens we can engage locking
+  - id: engage_latch_scr
+    then:
+      - if:
+          condition:
+            - switch.is_on: latch_mode
+          then:
+            - script.execute: lock_scr
+
+  # placeholder if i need some more options
+  - id: unlock_signal_scr
+    then:
+      - script.execute: unlock_scr

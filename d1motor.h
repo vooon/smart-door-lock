@@ -3,7 +3,7 @@
 #include "esphome.h"
 #include <cmath>
 
-static const char *TAG = "d1motor";
+static const char *TAGD1 = "d1motor";
 
 //! D1Motor implements interface to motor uC
 //
@@ -13,11 +13,11 @@ public:
 	D1Motor(I2CComponent *parent, uint8_t address=0x30, uint8_t channel=0) :
 		I2CDevice(parent, address),
 		channel_(channel)
-		//min_power_(-1.0), max_power_(1.0)
+		// min_power_(-1.0), max_power_(1.0)
 	{}
 
 	void setup() override {
-		ESP_LOGVV(TAG, "initializing freq");
+		ESP_LOGVV(TAGD1, "initializing freq");
 		this->update_frequency(8000.0);
 	}
 
@@ -28,7 +28,7 @@ public:
 	//              NAN - standby
 	//              INFINITE - brake
 	void set_level(float state) {
-		ESP_LOGD(TAG, "set_level: %f", state);
+		ESP_LOGD(TAGD1, "set_level: %f", state);
 
 		uint8_t buf[4];
 		uint8_t dir;
@@ -62,7 +62,7 @@ public:
 		buf[3] = sp & 0xff;
 
 		auto res = this->write_bytes_raw(buf, sizeof(buf));
-		if (!res) ESP_LOGE(TAG, "write error");
+		if (!res) ESP_LOGE(TAGD1, "write error");
 	}
 
 	//! set_freq sets PWM frequency
@@ -76,19 +76,19 @@ public:
 		buf[3] = f & 0xff;
 
 		auto res = this->write_bytes_raw(buf, sizeof(buf));
-		if (!res) ESP_LOGE(TAG, "write error");
+		if (!res) ESP_LOGE(TAGD1, "write error");
 	}
 
 	void dump_config() {
-		ESP_LOGCONFIG(TAG, "Address: 0x%02X", address_);
-		ESP_LOGCONFIG(TAG, "Channel: %d", channel_);
+		ESP_LOGCONFIG(TAGD1, "Address: 0x%02X", address_);
+		ESP_LOGCONFIG(TAGD1, "Channel: %d", channel_);
 
 		uint8_t info = this->reg(0x40).get();
-		ESP_LOGCONFIG(TAG, "Info reg: 0x%02X", info);
+		ESP_LOGCONFIG(TAGD1, "Info reg: 0x%02X", info);
 	}
 
 	void write_state(float state) override {
-		ESP_LOGE(TAG, "write_state not overriden");
+		ESP_LOGE(TAGD1, "write_state not overriden");
 		this->set_level(state);	// XXX: original set_level clamps to 0..1
 	}
 
