@@ -28,10 +28,10 @@ public:
 		unknown = 6
 	};
 
-	LockController(D1Motor &m,
+	LockController(D1Motor &m, script::Script &on_state_change,
 			ES locked_es, ES unlocked_es, ES door_closed,
 			GV32 lock_cnt, GV32 unlock_cnt) :
-		_st(State::unknown), _m(m),
+		_st(State::unknown), _m(m), _on_state_change(on_state_change),
 		_locked_es(locked_es), _unlocked_es(unlocked_es), _door_closed(door_closed),
 		_lock_cnt(lock_cnt), _unlock_cnt(unlock_cnt)
 	{}
@@ -67,23 +67,24 @@ public:
 		uint32_t run_time = now - _start_millis;
 		float new_pwm = mapf(run_time, 0, MOTOR_STARTUP_TIME, MOTOR_START_PWM, MOTOR_FULL_PWM);
 		if (_st == State::closing) {
-			new_pwm *= 1.0;
+			new_pwm *= -1.0;
 		}
 
 		ESP_LOGVV(TAGLC, "state %d, t: %d/%d, p: %f/%f", _st, _start_millis, now, _prev_speed, new_pwm);
 		if (_prev_speed != new_pwm && run_time <= MOTOR_TIMEOUT_MS) {
 			_m.set_level(new_pwm);
 			_prev_speed = new_pwm;
+			_on_state_change.execute();
 		}
 
 		if (run_time > MOTOR_TIMEOUT_MS) {
 			ESP_LOGE(TAGLC, "run timeout, stop motor in unknown state");
-			_m.set_level(INFINITY);
-			_st = State::unknown;
+			stop_actuation(State::unknown);
 		}
 	}
 
 	inline State get_state() { return _st; }
+	inline float get_motor_command() { return _prev_speed; }
 
 	void unlock() {
 		ESP_LOGI(TAGLC, "requested to unlock");
@@ -117,15 +118,13 @@ public:
 	void on_lock_endstop() {
 		ESP_LOGD(TAGLC, "endstop: locked");
 		_lock_cnt += 1;
-		_st = State::close;
-		_m.set_level(INFINITY);
+		stop_actuation(State::close);
 	}
 
 	void on_unlock_endstop() {
-		ESP_LOGD(TAGLC, "endstop: locked");
+		ESP_LOGD(TAGLC, "endstop: unlocked");
 		_unlock_cnt += 1;
-		_st = State::open;
-		_m.set_level(INFINITY);
+		stop_actuation(State::open);
 	}
 
 	void on_door_closed() {
@@ -138,6 +137,7 @@ public:
 private:
 	State _st;
 	D1Motor &_m;
+	script::Script &_on_state_change;
 	ES _locked_es, _unlocked_es, _door_closed;
 	GV32 _lock_cnt, _unlock_cnt;
 
@@ -147,6 +147,14 @@ private:
 	void command_actuation(State st) {
 		_st = st;
 		_prev_speed = 0.0;
+		_on_state_change.execute();
+	}
+
+	void stop_actuation(State st) {
+		_m.set_level(INFINITY);
+		_st = st;
+		_prev_speed = 0.0;
+		_on_state_change.execute();
 	}
 
 	float mapf(float val, float in_min, float in_max, float out_min, float out_max) {

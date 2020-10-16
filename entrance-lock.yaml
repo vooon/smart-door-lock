@@ -91,7 +91,7 @@ custom_component:
     lambda: |-
       auto m = static_cast<D1Motor*>(id(lock_motor));
       auto ctl = new LockController(
-        *m,
+        *m, *id(lockctl_on_state_change_scr),
         *id(h_locked), *id(h_unlocked), *id(h_closed),
         id(gv_lock_cnt), id(gv_unlock_cnt)
       );
@@ -119,6 +119,7 @@ text_sensor:
     name: "$uname ESPHome version"
 
   - platform: template
+    id: txsns_state
     name: "$uname State"
     lambda: |-
       using S = LockController::State;
@@ -215,6 +216,13 @@ sensor:
   - platform: uptime
     name: "$uname Uptime"
 
+  - platform: template
+    id: sns_motor_cmd
+    name: $uname Motor Command
+    lambda: |-
+      auto ctl = get_lockctl(id(lockctl));
+      return ctl->get_motor_command();
+
 switch:
   - platform: restart
     name: $uname Reboot
@@ -234,6 +242,7 @@ switch:
           value: "false"
 
   - platform: template
+    id: lock
     name: $uname
     # device_class: lock
     lambda: |-
@@ -254,6 +263,7 @@ script:
 
   # unlock the door, if latch mode is on give one minute to open
   - id: unlock_scr
+    mode: restart
     then:
       - lambda: |-
           auto ctl = get_lockctl(id(lockctl));
@@ -278,3 +288,11 @@ script:
   - id: unlock_signal_scr
     then:
       - script.execute: unlock_scr
+
+  - id: lockctl_on_state_change_scr
+    mode: restart
+    then:
+      - component.update: txsns_state
+      - component.update: sns_motor_cmd
+      # - component.update: latch_mode
+      # - component.update: lock
