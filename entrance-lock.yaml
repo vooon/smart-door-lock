@@ -72,11 +72,22 @@ globals:
     restore_value: yes
     initial_value: '0'
 
-custom_component:
-  - id: lock_motor
+# custom_component:
+#   - id: lock_motor
+#     lambda: |-
+#       auto motor = new D1Motor(id(i2c_bus), 0x30, 0);
+#       return {motor};
+
+output:
+  - platform: custom
+    type: float
     lambda: |-
-      auto motor = new D1Motor(id(i2c_bus), 0x30, 0);
-      return {motor};
+      auto lock_motor_output = new D1Motor(id(i2c_bus), 0x30, 0);
+      App.register_component(lock_motor_output);
+      return {lock_motor_output};
+
+    outputs:
+      id: lock_motor
 
 text_sensor:
   - platform: wifi_info
@@ -133,6 +144,17 @@ binary_sensor:
     id: btn_ext_open
     name: $uname External Open
 
+    on_press:
+      - lambda: |-
+          auto m = static_cast<D1Motor*>(id(lock_motor));
+          m->set_level(-1.0f);
+
+    on_release:
+      - lambda: |-
+          auto m = static_cast<D1Motor*>(id(lock_motor));
+          //m->set_level(0.0f);
+          m->set_level(NAN);
+
   - platform: gpio
     pin:
       number: D4
@@ -145,14 +167,15 @@ binary_sensor:
 
     on_press:
       - lambda: |-
-          //auto m = static_cast<D1Motor*>(id(lock_motor).get_component(0));
-          //m->set(50);
-          auto c = id(lock_motor).get_component(0);
+          auto m = static_cast<D1Motor*>(id(lock_motor));
+          m->set_level(1.0f);
 
     on_release:
       - lambda: |-
-          //D1Motor *m = id(lock_motor).get_component(0);
-          //m->set(0);
+          auto m = static_cast<D1Motor*>(id(lock_motor));
+          //m->set_level(0.0f);
+          m->set_level(INFINITY);
+
 
 sensor:
   - platform: wifi_signal

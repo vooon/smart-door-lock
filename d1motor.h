@@ -8,40 +8,49 @@ static const char *TAG = "d1motor";
 //! D1Motor implements interface to motor uC
 //
 // See: https://github.com/fabiuz7/wemos_motor_shield
-class D1Motor : public Component, public i2c::I2CDevice {
+class D1Motor : public Component, public i2c::I2CDevice, public output::FloatOutput {
 public:
-	D1Motor(I2CComponent *parent, uint8_t address=0x30, uint8_t channel=0) : I2CDevice(parent, address), channel_(channel) {}
+	D1Motor(I2CComponent *parent, uint8_t address=0x30, uint8_t channel=0) :
+		I2CDevice(parent, address),
+		channel_(channel)
+		//min_power_(-1.0), max_power_(1.0)
+	{}
 
 	void setup() override {
 		ESP_LOGVV(TAG, "initializing freq");
-		auto res = this->set_freq(8000.0);
-		ESP_LOGD(TAG, "initialized, res: %d", res);
+		this->update_frequency(8000.0);
 	}
 
 	//! set controls motor channel
 	//
-	// @param speed +-100.0 - CW or CCW rotation with set PWM
+	// @param speed +-1.0 - CW or CCW rotation with set PWM
 	//              0.0 - stop
 	//              NAN - standby
 	//              INFINITE - brake
-	bool set_level(float speed) {
+	void set_level(float state) {
+		ESP_LOGD(TAG, "set_level: %f", state);
+
 		uint8_t buf[4];
 		uint8_t dir;
 		uint16_t sp = 0;
 
-		if (std::isinf(speed)) {
+		if (this->is_inverted()) {
+			state *= -1.0f;
+		}
+
+		if (std::isinf(state)) {
 			dir = 0x00; // BREAK
 		}
-		else if (std::isnan(speed)) {
+		else if (std::isnan(state)) {
 			dir = 0x04; // STANDBY
 		}
-		else if (speed > 0) {
+		else if (state > 0) {
 			dir = 0x02; // CW
-			sp = speed * 100;
+			sp = state * 10000;
 		}
-		else if (speed < 0) {
+		else if (state < 0) {
 			dir = 0x01; // CCW
-			sp = speed * 100;
+			sp = state * 10000;
 		}
 		else {
 			dir = 0x03; // STOP
@@ -52,11 +61,12 @@ public:
 		buf[2] = sp >> 8;
 		buf[3] = sp & 0xff;
 
-		return this->write_bytes_raw(buf, sizeof(buf));
+		auto res = this->write_bytes_raw(buf, sizeof(buf));
+		if (!res) ESP_LOGE(TAG, "write error");
 	}
 
 	//! set_freq sets PWM frequency
-	bool set_freq(float freq) {
+	void update_frequency(float freq) override {
 		uint8_t buf[4];
 		uint32_t f = freq;
 
@@ -65,7 +75,8 @@ public:
 		buf[2] = (f >> 8) & 0xff;
 		buf[3] = f & 0xff;
 
-		return this->write_bytes_raw(buf, sizeof(buf));
+		auto res = this->write_bytes_raw(buf, sizeof(buf));
+		if (!res) ESP_LOGE(TAG, "write error");
 	}
 
 	void dump_config() {
@@ -74,6 +85,11 @@ public:
 
 		uint8_t info = this->reg(0x40).get();
 		ESP_LOGCONFIG(TAG, "Info reg: 0x%02X", info);
+	}
+
+	void write_state(float state) override {
+		ESP_LOGE(TAG, "write_state not overriden");
+		this->set_level(state);	// XXX: original set_level clamps to 0..1
 	}
 
 private:
