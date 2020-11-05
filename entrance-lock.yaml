@@ -209,7 +209,7 @@ binary_sensor:
     id: btn_int_open
     name: $uname Internal Open
     on_press:
-      - script.execute: unlock_signal_scr
+      - script.execute: internal_button_scr
 
 sensor:
   - platform: wifi_signal
@@ -265,6 +265,14 @@ script:
           auto ctl = get_lockctl(id(lockctl));
           ctl->restore_state();
 
+  - id: lockctl_on_state_change_scr
+    mode: restart
+    then:
+      - component.update: txsns_state
+      - component.update: sns_motor_cmd
+      # - component.update: latch_mode
+      # - component.update: lock
+
   # activate locking logic
   - id: lock_scr
     then:
@@ -295,15 +303,43 @@ script:
           then:
             - script.execute: lock_scr
 
-  # placeholder if i need some more options
+  # called when wires to doorbell panel shorts
   - id: unlock_signal_scr
     then:
-      - script.execute: unlock_scr
+      - if:
+          condition:
+            lambda: return id(gv_ext_open_enabled);
+          then:
+            - logger.log:
+                format: "external unlock called"
+                level: INFO
+            - script.execute: unlock_scr
+          else:
+            - logger.log:
+                format: "external unlock called, but it is disabled"
+                level: WARN
 
-  - id: lockctl_on_state_change_scr
-    mode: restart
+  # called when open button pressed
+  - id: internal_button_scr
     then:
-      - component.update: txsns_state
-      - component.update: sns_motor_cmd
-      # - component.update: latch_mode
-      # - component.update: lock
+      - if:
+          condition:
+            lambda: return id(gv_ext_open_enabled);
+          then:
+            - logger.log:
+                format: "internal unlock called"
+                level: INFO
+            - if:
+                condition:
+                  lambda: |-
+                    auto ctl = get_lockctl(id(lockctl));
+                    auto st = ctl->get_state();
+                    return st == LockController::State::open || st == LockController::State::wait_to_close;
+                then:
+                  - script.execute: lock_scr
+                else:
+                  - script.execute: unlock_scr
+          else:
+            - logger.log:
+                format: "internal unlock called, but it is disabled"
+                level: WARN

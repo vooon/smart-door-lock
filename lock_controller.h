@@ -56,7 +56,7 @@ public:
 #if 0
 		uint32_t update_period = now - _prev_update;
 		if (!(now < _prev_update || update_period > MOTOR_MIN_UPDATE_PERIOD_MS)) {
-			ESP_LOGD(TAGLC, "trottling");
+			//ESP_LOGD(TAGLC, "trottling");
 			return;
 		}
 #endif
@@ -73,10 +73,11 @@ public:
 		if (_st == State::closing) {
 			new_pwm *= -1.0;
 		}
+
 #endif
 
-		ESP_LOGD(TAGLC, "state %d, t: %d/%d (%d), p: %f/%f", _st, _start_millis, now, run_time, _prev_speed, new_pwm);
 		if (_prev_speed != new_pwm && run_time <= MOTOR_TIMEOUT_MS) {
+			ESP_LOGD(TAGLC, "state %d, t: %d/%d (%d), p: %f/%f", _st, _start_millis, now, run_time, _prev_speed, new_pwm);
 			_m.set_level(new_pwm);
 			_prev_speed = new_pwm;
 			_prev_update = now;
