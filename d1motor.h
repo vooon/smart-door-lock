@@ -50,7 +50,7 @@ public:
 		}
 		else if (state < 0) {
 			dir = 0x01; // CCW
-			sp = state * 10000;
+			sp = std::fabs(state) * 10000;
 		}
 		else {
 			dir = 0x03; // STOP

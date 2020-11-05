@@ -15,9 +15,10 @@ public:
 	using GV32 = uint32_t&;
 
 	static constexpr uint32_t MOTOR_TIMEOUT_MS = 10000;
-	static constexpr uint32_t MOTOR_STARTUP_TIME = 2000;
-	static constexpr float MOTOR_START_PWM = 0.3;
-	static constexpr float MOTOR_FULL_PWM = 7.0;
+	static constexpr uint32_t MOTOR_STARTUP_TIME = 500;
+	static constexpr uint32_t MOTOR_MIN_UPDATE_PERIOD_MS = 10;
+	static constexpr float MOTOR_START_PWM = 0.1;
+	static constexpr float MOTOR_FULL_PWM = 1.0;
 
 	enum class State {
 		open = 1,
@@ -33,12 +34,12 @@ public:
 			GV32 lock_cnt, GV32 unlock_cnt) :
 		_st(State::unknown), _m(m), _on_state_change(on_state_change),
 		_locked_es(locked_es), _unlocked_es(unlocked_es), _door_closed(door_closed),
-		_lock_cnt(lock_cnt), _unlock_cnt(unlock_cnt)
+		_lock_cnt(lock_cnt), _unlock_cnt(unlock_cnt),
+		_prev_speed(0.0), _prev_update(0)
 	{}
 
 	void setup() override {
-		_prev_speed = 0.0;
-		_st = State::unknown;
+		ESP_LOGD(TAGLC, "controller setup complete");
 	}
 
 	void loop() override {
@@ -52,16 +53,33 @@ public:
 			_start_millis = now;
 		}
 
+#if 0
+		uint32_t update_period = now - _prev_update;
+		if (!(now < _prev_update || update_period > MOTOR_MIN_UPDATE_PERIOD_MS)) {
+			ESP_LOGD(TAGLC, "trottling");
+			return;
+		}
+#endif
+
 		uint32_t run_time = now - _start_millis;
+#if 1	// slow speed build-up
 		float new_pwm = mapf(run_time, 0, MOTOR_STARTUP_TIME, MOTOR_START_PWM, MOTOR_FULL_PWM);
 		if (_st == State::closing) {
 			new_pwm *= -1.0;
 		}
 
-		ESP_LOGVV(TAGLC, "state %d, t: %d/%d, p: %f/%f", _st, _start_millis, now, _prev_speed, new_pwm);
+#else  	// instant full-power
+		float new_pwm = MOTOR_FULL_PWM;
+		if (_st == State::closing) {
+			new_pwm *= -1.0;
+		}
+#endif
+
+		ESP_LOGD(TAGLC, "state %d, t: %d/%d (%d), p: %f/%f", _st, _start_millis, now, run_time, _prev_speed, new_pwm);
 		if (_prev_speed != new_pwm && run_time <= MOTOR_TIMEOUT_MS) {
 			_m.set_level(new_pwm);
 			_prev_speed = new_pwm;
+			_prev_update = now;
 			_on_state_change.execute();
 		}
 
@@ -89,6 +107,7 @@ public:
 		}
 
 		ESP_LOGI(TAGLC, "restored state: %d", _st);
+		_on_state_change.execute();
 	}
 
 	void unlock() {
@@ -148,6 +167,7 @@ private:
 
 	uint32_t _start_millis;
 	float _prev_speed;
+	uint32_t _prev_update;
 
 	void command_actuation(State st) {
 		_st = st;
