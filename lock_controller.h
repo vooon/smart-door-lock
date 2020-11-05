@@ -14,10 +14,10 @@ public:
 	using ES = gpio::GPIOBinarySensor&;
 	using GV32 = uint32_t&;
 
-	static constexpr uint32_t MOTOR_TIMEOUT_MS = 20000;
+	static constexpr uint32_t MOTOR_TIMEOUT_MS = 10000;
 	static constexpr uint32_t MOTOR_STARTUP_TIME = 2000;
 	static constexpr float MOTOR_START_PWM = 0.3;
-	static constexpr float MOTOR_FULL_PWM = 1.0;
+	static constexpr float MOTOR_FULL_PWM = 7.0;
 
 	enum class State {
 		open = 1,
@@ -37,20 +37,8 @@ public:
 	{}
 
 	void setup() override {
-		// Restore state from endstops
-		if (_locked_es.state) {
-			_st = State::close;
-		}
-		else if (_unlocked_es.state) {
-			_st = State::open;
-		}
-
-		// If state still unknown - close
-		if (_st == State::unknown) {
-			_st = State::closing;
-		}
-
-		ESP_LOGI(TAGLC, "restored state: %d", _st);
+		_prev_speed = 0.0;
+		_st = State::unknown;
 	}
 
 	void loop() override {
@@ -85,6 +73,23 @@ public:
 
 	inline State get_state() { return _st; }
 	inline float get_motor_command() { return _prev_speed; }
+
+	void restore_state() {
+		// Restore state from endstops
+		if (_locked_es.state) {
+			_st = State::close;
+		}
+		else if (_unlocked_es.state) {
+			_st = State::open;
+		}
+
+		// If state still unknown - close
+		if (_st == State::unknown) {
+			_st = State::closing;
+		}
+
+		ESP_LOGI(TAGLC, "restored state: %d", _st);
+	}
 
 	void unlock() {
 		ESP_LOGI(TAGLC, "requested to unlock");

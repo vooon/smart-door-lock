@@ -10,6 +10,9 @@ esphome:
   # XXX
   arduino_version: dev
 
+  on_boot:
+    - script.execute: delayed_lockctl_setup_scr
+
 substitutions:
   uname: Entrance Lock
 
@@ -254,6 +257,14 @@ switch:
       - script.execute: lock_scr
 
 script:
+  # delayed controller init
+  - id: delayed_lockctl_setup_scr
+    then:
+      - delay: 1s
+      - lambda: |-
+          auto ctl = get_lockctl(id(lockctl));
+          ctl->restore_state();
+
   # activate locking logic
   - id: lock_scr
     then:
