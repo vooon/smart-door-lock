@@ -178,6 +178,7 @@ private:
 
 	void stop_actuation(State st) {
 		_m.set_level(INFINITY);
+		// _m.set_level(0.0);
 		_st = st;
 		_prev_speed = 0.0;
 		_on_state_change.execute();

@@ -271,6 +271,7 @@ switch:
   - platform: template
     id: latch_mode
     name: $uname Latch Mode
+    icon: mdi:lock-smart
     lambda: |-
       return id(gv_latch_mode);
     turn_on_action:
@@ -285,7 +286,7 @@ switch:
   - platform: template
     id: lock
     name: $uname
-    icon: mdi:lock_open
+    icon: mdi:lock-open
     # device_class: lock
     lambda: |-
       auto ctl = get_lockctl(id(lockctl));
@@ -313,7 +314,7 @@ switch:
   - platform: template
     id: ext_open_enabled
     name: $uname External Open Button Enabled
-    icon: mdi:fingerprint
+    icon: mdi:cellphone-nfc
     lambda: |-
       return id(gv_ext_open_enabled);
     turn_on_action:
