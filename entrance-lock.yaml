@@ -313,6 +313,7 @@ sensor:
     sensors:
       - name: "$uname - Air tank pressure"
         unit_of_measurement: Pa
+        device_class: pressure
         filters:
           - sliding_window_moving_average:
               window_size: 10
@@ -322,12 +323,13 @@ sensor:
           - below: 50000.0
             then:
               - script.execute: compressor_on_scr
-          - above: 160000.0
+          - above: 140000.0
             then:
               - switch.turn_off: compressor_sw
 
       - name: "$uname - Temperature"
         unit_of_measurement: °C
+        device_class: temperature
         filters:
           - sliding_window_moving_average:
               window_size: 10
@@ -432,6 +434,13 @@ script:
     then:
       - switch.turn_on: compressor_sw
       - delay: 60s
+      - if:
+          condition:
+            - switch.is_on: compressor_sw
+          then:
+            - logger.log:
+                format: "Compressor timeout reached!"
+                level: ERROR
       - switch.turn_off: compressor_sw
 
   # activate locking logic
