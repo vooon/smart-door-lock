@@ -66,7 +66,7 @@ public:
 		buf[3] = sp & 0xff;
 
 		auto res = this->write(buf, sizeof(buf));
-		if (!res) ESP_LOGE(TAGD1, "write error");
+		if (res != ERROR_OK) ESP_LOGE(TAGD1, "write error");
 
 		level = state;
 	}
