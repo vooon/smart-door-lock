@@ -10,11 +10,13 @@ static const char *TAGD1 = "d1motor";
 // See: https://github.com/fabiuz7/wemos_motor_shield
 class D1Motor : public Component, public i2c::I2CDevice, public output::FloatOutput {
 public:
-	D1Motor(I2CComponent *parent, uint8_t address=0x30, uint8_t channel=0) :
-		I2CDevice(parent, address),
+	D1Motor(I2CBus *parent, uint8_t address=0x30, uint8_t channel=0) :
 		channel_(channel)
 		// min_power_(-1.0), max_power_(1.0)
-	{}
+	{
+		set_i2c_bus(parent);
+		set_i2c_address(address);
+	}
 
 	void setup() override {
 		ESP_LOGVV(TAGD1, "initializing freq");
@@ -61,7 +63,7 @@ public:
 		buf[2] = sp >> 8;
 		buf[3] = sp & 0xff;
 
-		auto res = this->write_bytes_raw(buf, sizeof(buf));
+		auto res = this->write(buf, sizeof(buf));
 		if (!res) ESP_LOGE(TAGD1, "write error");
 	}
 
@@ -75,12 +77,14 @@ public:
 		buf[2] = (f >> 8) & 0xff;
 		buf[3] = f & 0xff;
 
-		auto res = this->write_bytes_raw(buf, sizeof(buf));
+		auto res = this->write(buf, sizeof(buf));
 		if (!res) ESP_LOGE(TAGD1, "write error");
 	}
 
 	void dump_config() {
-		ESP_LOGCONFIG(TAGD1, "Address: 0x%02X", address_);
+#define TAG TAGD1
+		LOG_I2C_DEVICE(this);
+#undef TAG
 		ESP_LOGCONFIG(TAGD1, "Channel: %d", channel_);
 
 		uint8_t info = this->reg(0x40).get();

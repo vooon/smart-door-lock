@@ -77,7 +77,7 @@ public:
 #endif
 
 		if (_prev_speed != new_pwm && run_time <= MOTOR_TIMEOUT_MS) {
-			ESP_LOGD(TAGLC, "state %d, t: %d/%d (%d), p: %f/%f", _st, _start_millis, now, run_time, _prev_speed, new_pwm);
+			//ESP_LOGD(TAGLC, "state %d, t: %d/%d (%d), p: %f/%f", _st, _start_millis, now, run_time, _prev_speed, new_pwm);
 			_m.set_level(new_pwm);
 			_prev_speed = new_pwm;
 			_prev_update = now;
@@ -107,7 +107,7 @@ public:
 			_st = State::closing;
 		}
 
-		ESP_LOGI(TAGLC, "restored state: %d", _st);
+		//ESP_LOGI(TAGLC, "restored state: %d", _st);
 		_on_state_change.execute();
 	}
 

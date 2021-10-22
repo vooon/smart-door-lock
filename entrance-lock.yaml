@@ -1,20 +1,44 @@
+#
+# Firmware for gate lock
+#
+---
+substitutions:
+  uname: Entrance Lock
+  device_name: entrance_lock
+  friendly_name: $uname
+  device_description: "Entrance Gate Lock"
+
 esphome:
-  name: entrance_lock
-  platform: ESP8266
-  board: d1_mini_pro
+  name: '${device_name}'
+  comment: '${device_description}'
+  project:
+    name: "vooon.smart_lock"
+    version: "0.1.0"
 
   includes:
     - d1motor.h
+    - xgzp6847d.h
     - lock_controller.h
 
   # XXX
-  arduino_version: dev
+  #arduino_version: dev
 
-  on_boot:
-    - script.execute: delayed_lockctl_setup_scr
+  #on_boot:
+  #  - script.execute: delayed_lockctl_setup_scr
 
-substitutions:
-  uname: Entrance Lock
+esp32:
+  board: esp32-s2-saola-1
+  variant: esp32s2
+  framework:
+    type: esp-idf
+    version: recommended
+    sdkconfig_options:
+      CONFIG_ESPTOOLPY_FLASHSIZE: '4MB'
+      CONFIG_ESP_CONSOLE_USB_CDC: 'y'
+      CONFIG_USB_ENABLED: 'n'
+      CONFIG_ETH_ENABLED: 'n'
+      # CONFIG_ESP32S2_SPIRAM_SUPPORT: 'y'
+      CONFIG_ESPTOOLPY_AFTER_NORESET: 'y'
 
 wifi:
   networks: !secret wifi_networks
@@ -24,15 +48,16 @@ wifi:
     ssid: "${uname} Fallback Hotspot"
     password: !secret wifi_ap_passwd
 
-captive_portal:
+# captive_portal:
 
 # Enable logging
 logger:
 
-debug:
+# debug:
 
 # Enable Home Assistant API
 api:
+  id: api_apiserver
   password: !secret api_password
   reboot_timeout: 5min
   services:
@@ -58,17 +83,22 @@ api:
 ota:
   password: !secret ota_password
 
-web_server:
-  auth:
-    username: admin
-    password: !secret web_password
+# web_server:
+#   auth:
+#     username: admin
+#     password: !secret web_password
 
-prometheus:
+# prometheus:
+
+status_led:
+  pin: 15
 
 i2c:
   id: i2c_bus
-  scl: D1
-  sda: D2
+  scl: 35
+  sda: 33
+  frequency: 100kHz
+  scan: true
 
 time:
   - platform: homeassistant
@@ -102,42 +132,59 @@ globals:
 custom_component:
   - id: lockctl
     lambda: |-
-      auto m = static_cast<D1Motor*>(id(lock_motor));
-      auto ctl = new LockController(
-        *m, *id(lockctl_on_state_change_scr),
-        *id(h_locked), *id(h_unlocked), *id(h_closed),
-        id(gv_lock_cnt), id(gv_unlock_cnt)
-      );
-      return {ctl};
+      // auto m = static_cast<D1Motor*>(id(lock_motor));
+      // auto ctl = new LockController(
+      //   *m, *id(lockctl_on_state_change_scr),
+      //   *id(h_locked), *id(h_unlocked), *id(h_closed),
+      //   id(gv_lock_cnt), id(gv_unlock_cnt)
+      // );
+      // return {ctl};
+      return {};
 
 output:
   - platform: custom
     type: float
     lambda: |-
-      auto lock_motor_output = new D1Motor(id(i2c_bus), 0x30, 0);
-      App.register_component(lock_motor_output);
-      return {lock_motor_output};
+      auto compressor_output = new D1Motor(id(i2c_bus), 0x30, 0);
+      App.register_component(compressor_output);
+      return {compressor_output};
 
     outputs:
-      id: lock_motor
+      id: compressor
+
+  - platform: custom
+    type: float
+    lambda: |-
+      auto valve_output = new D1Motor(id(i2c_bus), 0x30, 1);
+      App.register_component(valve_output);
+      return {valve_output};
+
+    outputs:
+      id: valve
 
 text_sensor:
   - platform: wifi_info
+    ip_address:
+      name: "${friendly_name} - IP Address"
+      icon: mdi:wifi
     ssid:
-      name: $uname SSID
+      name: "${friendly_name} - Connected SSID"
+      icon: mdi:wifi-strength-2
     bssid:
-      name: $uname BSSID
+      name: "${friendly_name} - BSSID"
 
   - platform: version
-    name: "$uname ESPHome version"
+    hide_timestamp: true
+    name: "${friendly_name} - ESPHome Version"
 
   - platform: template
     id: txsns_state
-    name: "$uname State"
+    name: "$uname - State"
     lambda: |-
       using S = LockController::State;
-      auto ctl = get_lockctl(id(lockctl));
-      switch (ctl->get_state()) {
+      //auto ctl = get_lockctl(id(lockctl));
+      //switch (ctl->get_state()) {
+      switch (S::unknown) {
         case S::open:           return {"OPEN"};
         case S::opening:        return {"OPENING"};
         case S::close:          return {"CLOSE"};
@@ -149,30 +196,30 @@ text_sensor:
 
 binary_sensor:
   - platform: status
-    name: $uname Connected
+    name: "$uname - Connected"
 
   - platform: gpio
     pin:
-      number: D5
+      number: 7
       mode: INPUT_PULLUP
       inverted: true
     filters:
       - delayed_on_off: 10ms
     id: h_closed
-    name: $uname Door Closed (gpio)
+    name: "$uname - Door Closed (gpio)"
     device_class: door
     internal: true
     on_press:
       # - component.update: h_closed_ha
       - lambda: |-
-          auto ctl = get_lockctl(id(lockctl));
-          ctl->on_door_closed();
+          //auto ctl = get_lockctl(id(lockctl));
+          //ctl->on_door_closed();
     on_release:
       # - component.update: h_closed_ha
       - script.execute: engage_latch_scr
 
   - platform: template
-    name: $uname Door Closed
+    name: "$uname - Door Closed"
     id: h_closed_ha
     device_class: door
     lambda: |-
@@ -181,73 +228,73 @@ binary_sensor:
 
   - platform: gpio
     pin:
-      number: D6
+      number: 9
       mode: INPUT_PULLUP
       inverted: true
     filters:
       - delayed_on_off: 10ms
     id: h_locked
-    name: $uname Locked endstop
+    name: "$uname - Locked endstop"
     on_press:
       - lambda: |-
-          auto ctl = get_lockctl(id(lockctl));
-          ctl->on_lock_endstop();
+          //auto ctl = get_lockctl(id(lockctl));
+          //ctl->on_lock_endstop();
 
   - platform: gpio
     pin:
-      number: D7
+      number: 11
       mode: INPUT_PULLUP
       inverted: true
     filters:
       - delayed_on_off: 10ms
     id: h_unlocked
-    name: $uname Unlocked endstop
+    name: "$uname - Unlocked endstop"
     on_press:
       - lambda: |-
-          auto ctl = get_lockctl(id(lockctl));
-          ctl->on_unlock_endstop();
+          //auto ctl = get_lockctl(id(lockctl));
+          //ctl->on_unlock_endstop();
 
   - platform: gpio
     pin:
-      number: D3
+      number: 18
       mode: INPUT_PULLUP
       inverted: true
     filters:
       - delayed_on_off: 10ms
     id: btn_ext_open
-    name: $uname External Open
+    name: "$uname - External Open"
     on_press:
       - script.execute: unlock_signal_scr
 
   - platform: gpio
     pin:
-      number: D4
+      number: 16
       mode: INPUT_PULLUP
       inverted: true
     filters:
       - delayed_on_off: 10ms
     id: btn_int_open
-    name: $uname Internal Open
+    name: "$uname - Internal Open"
     on_press:
       - script.execute: internal_button_scr
 
 sensor:
   - platform: wifi_signal
-    name: "$uname WiFi Signal"
+    name: "$uname - WiFi Signal"
     update_interval: 10s
 
   - platform: uptime
-    name: "$uname Uptime"
+    name: "$uname - Uptime"
+
+  # - platform: template
+  #   id: sns_motor_cmd
+  #   name: $uname - Motor Command
+  #   lambda: |-
+  #     auto ctl = get_lockctl(id(lockctl));
+  #     return ctl->get_motor_command();
 
   - platform: template
-    id: sns_motor_cmd
-    name: $uname Motor Command
-    lambda: |-
-      auto ctl = get_lockctl(id(lockctl));
-      return ctl->get_motor_command();
-
-  - platform: template
-    name: "$uname Lock Count"
+    name: "$uname - Lock Count"
     id: sns_lock_cnt
     icon: mdi:counter
     accuracy_decimals: 0
@@ -256,7 +303,7 @@ sensor:
       return float(id(gv_lock_cnt));
 
   - platform: template
-    name: "$uname Unlock Count"
+    name: "$uname - Unlock Count"
     id: sns_unlock_cnt
     icon: mdi:counter
     accuracy_decimals: 0
@@ -264,13 +311,25 @@ sensor:
     lambda: !lambda |
       return float(id(gv_unlock_cnt));
 
+  - platform: custom
+    lambda: |-
+      auto xgzp = new XGZP6847D(id(i2c_bus), 0x6D, 4);
+      App.register_component(xgzp);
+      return {xgzp->pressure_sensor, xgzp->temperature_sensor};
+
+    sensors:
+      - name: "$uname - Air tank pressure"
+        unit_of_measurement: Pa
+      - name: "$uname - Temperature"
+        unit_of_measurement: °C
+
 switch:
   - platform: restart
-    name: $uname Reboot
+    name: $uname - Reboot
 
   - platform: template
     id: latch_mode
-    name: $uname Latch Mode
+    name: $uname - Latch Mode
     icon: mdi:lock-smart
     lambda: |-
       return id(gv_latch_mode);
@@ -284,21 +343,8 @@ switch:
           value: "false"
 
   - platform: template
-    id: lock
-    name: $uname
-    icon: mdi:lock-open
-    # device_class: lock
-    lambda: |-
-      auto ctl = get_lockctl(id(lockctl));
-      return ctl->get_state() != LockController::State::close;
-    turn_on_action:
-      - script.execute: unlock_scr
-    turn_off_action:
-      - script.execute: lock_scr
-
-  - platform: template
     id: int_open_enabled
-    name: $uname Internal Open Button Enabled
+    name: $uname - Internal Open Button Enabled
     icon: mdi:login
     lambda: |-
       return id(gv_int_open_enabled);
@@ -313,7 +359,7 @@ switch:
 
   - platform: template
     id: ext_open_enabled
-    name: $uname External Open Button Enabled
+    name: $uname - External Open Button Enabled
     icon: mdi:cellphone-nfc
     lambda: |-
       return id(gv_ext_open_enabled);
@@ -326,22 +372,24 @@ switch:
           id: gv_ext_open_enabled
           value: "false"
 
+  - platform: output
+    id: compressor_sw
+    name: "$uname - Compressor"
+    output: compressor
+
 script:
   # delayed controller init
   - id: delayed_lockctl_setup_scr
     then:
       - delay: 1s
       - lambda: |-
-          auto ctl = get_lockctl(id(lockctl));
-          ctl->restore_state();
+          //auto ctl = get_lockctl(id(lockctl));
+          //ctl->restore_state();
 
   - id: lockctl_on_state_change_scr
     mode: restart
     then:
       - component.update: txsns_state
-      - component.update: sns_motor_cmd
-      # - component.update: latch_mode
-      # - component.update: lock
       - component.update: sns_lock_cnt
       - component.update: sns_unlock_cnt
 
@@ -349,16 +397,16 @@ script:
   - id: lock_scr
     then:
       - lambda: |-
-          auto ctl = get_lockctl(id(lockctl));
-          ctl->lock();
+          //auto ctl = get_lockctl(id(lockctl));
+          //ctl->lock();
 
   # unlock the door, if latch mode is on give one minute to open
   - id: unlock_scr
     mode: restart
     then:
       - lambda: |-
-          auto ctl = get_lockctl(id(lockctl));
-          ctl->unlock();
+          //auto ctl = get_lockctl(id(lockctl));
+          //ctl->unlock();
       - if:
           condition:
             - switch.is_on: latch_mode
@@ -404,9 +452,10 @@ script:
             - if:
                 condition:
                   lambda: |-
-                    auto ctl = get_lockctl(id(lockctl));
-                    auto st = ctl->get_state();
-                    return st == LockController::State::open || st == LockController::State::wait_to_close;
+                    //auto ctl = get_lockctl(id(lockctl));
+                    //auto st = ctl->get_state();
+                    //return st == LockController::State::open || st == LockController::State::wait_to_close;
+                    return false;
                 then:
                   - script.execute: lock_scr
                 else:
