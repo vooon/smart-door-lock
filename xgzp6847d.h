@@ -14,7 +14,7 @@ public:
 	Sensor *temperature_sensor;
 
 	XGZP6847D(I2CBus *bus, uint8_t address=0x6D, int pressure_k=64) :
-		PollingComponent(1000),
+		PollingComponent(100),
 		pressure_sensor(new Sensor()),
 		temperature_sensor(new Sensor()),
 		pressure_k_(pressure_k)
@@ -37,49 +37,60 @@ public:
 		uint8_t sys_config = this->reg(0xA5).get();
 		this->reg(0xA5) = sys_config & 0xFD;
 
-		// 2. Setup conversion mode
-		this->reg(0x30) = (0b0010 << 4 /* 125 ms sleep mode */) | \
-				  (0b010 << 0 /* temp+pressure measurement mode */) | \
-				  (0b1 << 3 /* start conversion by SCO bit */);
+		// NOTE: sleep mode do not work, i always got same measurement
 	}
 
 	void update() override {
-		uint8_t buf[5];
-		uint32_t press_raw;
-		uint16_t temp_raw;
-		float pressure, temperature;
+		this->reg(0x30) = (0b0000 << 4 /* 125 ms sleep mode */) | \
+				  (0b010 << 0 /* temp+pressure measurement mode */) | \
+				  (0b1 << 3 /* start conversion by SCO bit */);
 
-		// 1. read status register
-		uint8_t status = this->reg(0x02).get();
+		auto cb = [this](){
+			uint8_t buf[5];
+			uint32_t press_raw;
+			uint16_t temp_raw;
+			float pressure, temperature;
 
-		// 2. read pressure and temperature registers
-		if (read_register(0x06, buf, sizeof(buf)) != ERROR_OK) {
-			this->status_set_warning();
-			return;
-		}
+			// 1. read status register
+			uint8_t status = this->reg(0x02).get();
+			if (!(status & (1 << 0))) {
+				this->status_set_warning();
+				ESP_LOGE(TAGXGZP, "DRDY = 0");
+				return;
+			}
 
-		// 3. calculate pressure
-		press_raw = (buf[0] << 16) | (buf[1] << 8) | (buf[2] << 0);
-		if (press_raw & (1 << 23)) {
-			// MSB 1 => negative pressure
-			pressure = ((int)press_raw - (1 << 24)) / pressure_k_;
-		} else {
-			pressure = press_raw / pressure_k_;
-		}
 
-		// 4. calculate temperature
-		temp_raw = (buf[3] << 8) | (buf[4] << 0);
-		if (temp_raw & (1 << 15)) {
-			// MSB 1 => negative temperature
-			temperature = ((int)temp_raw - (1 << 16)) / 256;
-		} else {
-			temperature = ((int)temp_raw) / 256;
-		}
+			// 2. read pressure and temperature registers
+			if (read_register(0x06, buf, sizeof(buf)) != ERROR_OK) {
+				this->status_set_warning();
+				return;
+			}
 
-		// 5. publish states
-		pressure_sensor->publish_state(pressure);
-		temperature_sensor->publish_state(temperature);
-		this->status_clear_warning();
+			// 3. calculate pressure
+			press_raw = (buf[0] << 16) | (buf[1] << 8) | (buf[2] << 0);
+			if (press_raw & (1 << 23)) {
+				// MSB 1 => negative pressure
+				pressure = ((int)press_raw - (1 << 24)) / pressure_k_;
+			} else {
+				pressure = press_raw / pressure_k_;
+			}
+
+			// 4. calculate temperature
+			temp_raw = (buf[3] << 8) | (buf[4] << 0);
+			if (temp_raw & (1 << 15)) {
+				// MSB 1 => negative temperature
+				temperature = ((int)temp_raw - (1 << 16)) / 256;
+			} else {
+				temperature = ((int)temp_raw) / 256;
+			}
+
+			// 5. publish states
+			pressure_sensor->publish_state(pressure);
+			temperature_sensor->publish_state(temperature);
+			this->status_clear_warning();
+		};
+
+		this->set_timeout("pdata", 12, cb);
 	}
 
 	void dump_config() {

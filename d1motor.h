@@ -10,6 +10,8 @@ static const char *TAGD1 = "d1motor";
 // See: https://github.com/fabiuz7/wemos_motor_shield
 class D1Motor : public Component, public i2c::I2CDevice, public output::FloatOutput {
 public:
+	float level;
+
 	D1Motor(I2CBus *parent, uint8_t address=0x30, uint8_t channel=0) :
 		channel_(channel)
 		// min_power_(-1.0), max_power_(1.0)
@@ -65,6 +67,8 @@ public:
 
 		auto res = this->write(buf, sizeof(buf));
 		if (!res) ESP_LOGE(TAGD1, "write error");
+
+		level = state;
 	}
 
 	//! set_freq sets PWM frequency
