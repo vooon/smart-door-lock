@@ -76,6 +76,9 @@ api:
         - globals.set:
             id: gv_unlock_cnt
             value: '0'
+        - globals.set:
+            id: gv_compressor_enable_cnt
+            value: '0'
 
 ota:
   password: !secret ota_password
@@ -113,6 +116,10 @@ globals:
     restore_value: yes
     initial_value: '0'
   - id: gv_unlock_cnt
+    type: uint32_t
+    restore_value: yes
+    initial_value: '0'
+  - id: gv_compressor_enable_cnt
     type: uint32_t
     restore_value: yes
     initial_value: '0'
@@ -201,7 +208,7 @@ binary_sensor:
       mode: INPUT_PULLUP
       inverted: true
     filters: &gpio_filters
-      - delayed_on_off: 20ms
+      - delayed_on_off: 100ms
     id: h_closed
     name: "$uname - Door Closed (gpio)"
     device_class: door
@@ -307,6 +314,15 @@ sensor:
     lambda: !lambda |
       return float(id(gv_unlock_cnt));
 
+  - platform: template
+    name: "$uname - Compressor Enable Count"
+    id: sns_compressor_enable_cnt
+    icon: mdi:counter
+    accuracy_decimals: 0
+    unit_of_measurement: count
+    lambda: !lambda |
+      return float(id(gv_compressor_enable_cnt));
+
   - platform: custom
     lambda: |-
       auto xgzp = new XGZP6847D(id(i2c_bus), 0x6D, 16);
@@ -323,7 +339,7 @@ sensor:
               send_every: 10
 
         on_value_range:
-          - below: 20000.0
+          - below: 15000.0 # 20000.0
             then:
               - script.execute: compressor_on_scr
           - above: 36000.0
@@ -395,6 +411,9 @@ switch:
     id: compressor_sw
     name: "$uname - Compressor"
     output: compressor
+    on_turn_on:
+      - lambda: |-
+          id(gv_compressor_enable_cnt) += 1;
 
   - platform: template
     id: open_valve_sw
@@ -448,6 +467,7 @@ script:
       - component.update: txsns_state
       - component.update: sns_lock_cnt
       - component.update: sns_unlock_cnt
+      - component.update: sns_compressor_enable_cnt
 
   - id: compressor_on_scr
     mode: restart

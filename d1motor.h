@@ -96,7 +96,7 @@ public:
 	}
 
 	void write_state(float state) override {
-		ESP_LOGE(TAGD1, "write_state not overriden");
+		// ESP_LOGE(TAGD1, "write_state not overriden");
 		this->set_level(state);	// XXX: original set_level clamps to 0..1
 	}
 
