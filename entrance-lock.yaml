@@ -331,6 +331,7 @@ sensor:
 
     sensors:
       - name: "$uname - Air tank pressure"
+        id: pressure_sensor
         unit_of_measurement: Pa
         device_class: pressure
         filters:
@@ -339,16 +340,24 @@ sensor:
               send_every: 10
 
         on_value_range:
-          - below: 15000.0 # 20000.0
+          - below: 18000.0
             then:
               - script.execute: compressor_on_scr
           - above: 36000.0
-            then: &comp_off
+            then:
               - switch.turn_off: compressor_sw
 
-          # NOTE: precaution, sometimes it's possible to exceed high threshold
-          - above: 40000.0
-            then: *comp_off
+        # NOTE: precaution, sometimes it's possible to exceed high threshold
+        on_value:
+          - if:
+              condition:
+                lambda: |-
+                  return id(pressure_sensor).state > 40000.0;
+              then:
+                - logger.log:
+                    format: "pressure max limit!"
+                    level: ERROR
+                - switch.turn_off: compressor_sw
 
       - name: "$uname - Temperature"
         unit_of_measurement: °C
