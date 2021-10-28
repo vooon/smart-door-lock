@@ -28,4 +28,4 @@ That design had problem with motors:
 1. After about 150 cycles first motor broke some teeth in the gearbox (~5 month)
 2. Month later second motor got stuck and somehow melted case (despite software protection)
 
-<iframe width="560" height="315" src="https://www.youtube.com/embed/prM_u_pD5L0" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+[![Watch the video](https://img.youtube.com/vi/prM_u_pD5L0/default.jpg)](https://youtu.be/prM_u_pD5L0)
