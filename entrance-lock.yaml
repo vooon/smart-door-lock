@@ -123,6 +123,18 @@ globals:
     type: uint32_t
     restore_value: yes
     initial_value: '0'
+  - id: gv_latch_mode
+    type: bool
+    restore_value: yes
+    initial_value: "true"
+  - id: gv_int_open_enabled
+    type: bool
+    restore_value: yes
+    initial_value: "true"
+  - id: gv_ext_open_enabled
+    type: bool
+    restore_value: yes
+    initial_value: "true"
 
 custom_component:
   - id: lockctl
@@ -367,22 +379,46 @@ switch:
     id: latch_mode
     name: $uname - Latch Mode
     icon: mdi:lock-smart
-    optimistic: true
-    restore_state: true
+    lambda: |-
+      return id(gv_latch_mode);
+    turn_on_action:
+      - globals.set:
+          id: gv_latch_mode
+          value: "true"
+    turn_off_action:
+      - globals.set:
+          id: gv_latch_mode
+          value: "false"
 
   - platform: template
     id: int_open_enabled
     name: $uname - Internal Open Button Enabled
     icon: mdi:login
-    optimistic: true
-    restore_state: true
+    lambda: |-
+      return id(gv_int_open_enabled);
+    turn_on_action:
+      - globals.set:
+          id: gv_int_open_enabled
+          value: "true"
+    turn_off_action:
+      - globals.set:
+          id: gv_int_open_enabled
+          value: "false"
 
   - platform: template
     id: ext_open_enabled
     name: $uname - External Open Button Enabled
     icon: mdi:cellphone-nfc
-    optimistic: true
-    restore_state: true
+    lambda: |-
+      return id(gv_ext_open_enabled);
+    turn_on_action:
+      - globals.set:
+          id: gv_ext_open_enabled
+          value: "true"
+    turn_off_action:
+      - globals.set:
+          id: gv_ext_open_enabled
+          value: "false"
 
   - platform: output
     id: compressor_sw
