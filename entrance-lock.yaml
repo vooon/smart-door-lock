@@ -313,6 +313,10 @@ sensor:
 
   - platform: custom
     lambda: |-
+      // NOTE: it's really unclear from datasheet what K should be used
+      //       and i do not have gauge for low pressures,
+      //       so readings likely not in real Pascals.
+      //       So let's measure them in Parrots/cm2 :)
       auto xgzp = new XGZP6847D(id(i2c_bus), 0x6D, 16);
       App.register_component(xgzp);
       return {xgzp->pressure_sensor, xgzp->temperature_sensor};
