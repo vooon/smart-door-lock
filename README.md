@@ -1,7 +1,7 @@
 # smart-door-lock
 
 ESP32-S2 based smart lock designed for my "unique" yard entrance door, which can open to both directions.
-I'm unable to find any existing smart lock, that can operate with such way, and which has mechanical key for the case of blackout.
+I'm unable to find any existing smart lock, that can operate in such way, and which has mechanical key in case of blackout.
 
 Features:
 1. Have input to signal open from video doorbell panel (ext input), with disable switch
